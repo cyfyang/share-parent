@@ -129,7 +129,7 @@ public class GlobalExceptionHandler
     }
 
     /**
-     * 自定义验证异常
+     * 自定义验证异常   校验失败的异常捕获
      */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public Object handleMethodArgumentNotValidException(MethodArgumentNotValidException e)
