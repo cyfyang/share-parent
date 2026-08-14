@@ -41,7 +41,7 @@ public class CabinetTypeController extends BaseController {
     }
 
     @Operation(summary = "查询柜机类型详细")
-    @GetMapping("/getById/{id}")
+    @GetMapping("/{id}")
     public AjaxResult getCabinetTypeById(@PathVariable("id") Long id) {
         return success(cabinetTypeService.getById(id));
     }
@@ -59,7 +59,7 @@ public class CabinetTypeController extends BaseController {
     }
 
     @Operation(summary = "删除柜机类型")
-    @DeleteMapping("/delete/{ids}")
+    @DeleteMapping("/{ids}")
     public AjaxResult delete(@PathVariable("ids") Long[] ids) {
         return toAjax(cabinetTypeService.removeBatchByIds(Arrays.asList(ids)));
     }
