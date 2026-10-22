@@ -2,7 +2,7 @@
   <div class="app-container">
 
     <!-- 搜索表单 -->
-    <el-form ref="queryRef" :inline="true" label-width="68px">
+    <el-form :model="queryParams" ref="queryRef" :inline="true" v-show="showSearch" label-width="68px">
       <el-form-item label="名称" prop="name">
         <el-input
             v-model="queryParams.name"
@@ -31,6 +31,8 @@
             type="success"
             plain
             icon="Edit"
+            :disabled="single"
+            @click="handleUpdate"
         >修改</el-button>
       </el-col>
       <el-col :span="1.5">
@@ -38,12 +40,16 @@
             type="danger"
             plain
             icon="Delete"
+            @click="handleDelete"
         >删除</el-button>
       </el-col>
+      <!-- 功能按钮栏 -->
+      <right-toolbar v-model:showSearch="showSearch" @queryTable="getList"></right-toolbar>
     </el-row>
 
-    <!-- 数据展示表格 -->
-    <el-table :data="cabinetTypeList">
+    <!-- 数据展示表格  -->
+    <!-- el-table组件添加选择处理方法 -->
+    <el-table :data="cabinetTypeList" @selection-change="handleSelectionChange">
       <el-table-column type="selection" width="55" align="center" />
       <el-table-column label="名称" prop="name" width="150"/>
       <el-table-column label="总插槽数量" prop="totalSlots" width="110"/>
@@ -57,14 +63,14 @@
       <el-table-column label="操作" align="center" class-name="small-padding fixed-width">
         <template #default="scope">
           <el-button link type="primary" icon="Edit" @click="handleUpdate(scope.row)">修改</el-button>
-          <el-button link type="primary" icon="Delete" @click="deleteData(scope.row)">删除</el-button>
+          <el-button link type="primary" icon="Delete" @click="handleDelete(scope.row)">删除</el-button>
         </template>
       </el-table-column>
     </el-table>
 
     <!-- 分页条组件 -->
     <pagination
-        v-show="total > 0"
+        v-show="total>0"
         :total="total"
         v-model:page="queryParams.pageNum"
         v-model:limit="queryParams.pageSize"
@@ -109,9 +115,9 @@
 
 <script setup name="CabinetType">
 // 引入api接口
-import {listCabinetType,addCabinetType} from "@/api/device/cabinetType";
+import {listCabinetType,addCabinetType,updateCabinetType,getCabinetType,delCabinetType } from "@/api/device/cabinetType";
 //引入ElMessage组件
-import { ElMessage } from "element-plus";
+import { ElMessage,ElMessageBox } from "element-plus";
 import { toRefs } from "vue";
 
 //定义分页列表数据模型
@@ -156,14 +162,71 @@ const data = reactive({
         name: null
     },
     //封装表单数据
-    form: {}
+    form: {},
+    rules: {
+      name: [
+        { required: true, message: "名称不能为空", trigger: "blur" }
+      ],
+      totalSlots: [
+        { required: true, message: "总插槽数量不能为空", trigger: "blur" }
+      ],
+    }
 });
 //toRefs 是一个Vue3中提供的API，可将一个响应式对象转换为普通对象，其中属性变成了对原始对象属性的引用
-const {queryParams,form} = toRefs(data);
+const {queryParams,form,rules} = toRefs(data);
+//message消息优化
+const { proxy } = getCurrentInstance();
+
+//定义隐藏搜索控制模型
+const showSearch = ref(true);
+
+//定义批量操作id列表模型
+const ids = ref([]);
+//定义单选控制模型
+const single = ref(true);
+//定义多选控制模型
+const multiple = ref(true);
+///////////////////////////////////////////===删除===//////////////////////////////////////////////////////////////////
+function handleSelectionChange(selection){
+  ids.value = selection.map(item =>item.id);
+  single.value = selection.length != 1;
+  multiple.value = !selection.length; 
+}
+
+function handleDelete(row){
+  const _id = row.id || ids.value;
+  //原生Element组件
+  // ElMessageBox.confirm('是否确认删除柜机类型数据项？', "系统提示", {
+  //   confirmButtonText: '确定',
+  //   cancelButtonText: '取消',
+  //   type: "warning",
+  // }).then(function() {
+  //   return delCabinetType(_id);
+  // }).then(() => {
+  //   getList();
+  //   // ElMessage.success("删除成功");
+  //   proxy.$modal.msgSuccess("删除成功");
+  // });
+
+  //系统封装的组件
+  proxy.$modal.confirm('是否确认删除柜机类型数据项？').then(function() {
+    return delCabinetType(_id);
+  }).then(() => {
+    getList();
+    proxy.$modal.msgSuccess("删除成功");
+  }).catch(() => {});
+}
+
 
 ///////////////////////////////////////////===修改===//////////////////////////////////////////////////////////////////
 function handleUpdate(row){
-
+  reset();
+  const cid = row.id || ids.value;
+  getCabinetType(cid).then(response =>{
+    form.value = response.data
+    open.value = true
+    title.value = "修改柜机类型"
+  });
 }
 ///////////////////////////////////////////===添加===//////////////////////////////////////////////////////////////////
 //表单重置
@@ -175,8 +238,8 @@ function reset(){
         description: null,
         status: null,
         remark: null
-
     };
+    proxy.resetForm("cabinetTypeRef");
 }
 //新增按钮操作
 function handleAdd(){
@@ -191,13 +254,25 @@ function cancel(){
 }
 //添加方法
 function submitForm(){
-    addCabinetType(form.value).then(response =>{
-        ElMessage.success("新增成功");
-        open.value = false;
-        getList();
-    });
-    
-
+  proxy.$refs["cabinetTypeRef"].validate(valid => {
+    if(valid){
+      if(form.value.id != null){
+        updateCabinetType(form.value).then(response =>{
+            // ElMessage.success("修改成功");
+            proxy.$modal.msgSuccess("修改成功");
+            open.value = false;
+            getList();
+        });
+      }else{
+        addCabinetType(form.value).then(response =>{
+            // ElMessage.success("新增成功");
+            proxy.$modal.msgSuccess("新增成功");
+            open.value = false;
+            getList();
+        });
+      }
+    }
+  });
 }
 
 ////////////////////////////////////////////====分页列表===/////////////////////////////////////////////////////////////////
@@ -219,9 +294,11 @@ function handleQuery(){
 
 //重置按钮操作
 function resetQuery(){
-    queryParams.value.pageNum = 1
-    queryParams.value.pageSize = 10
-    queryParams.value.name = null
+    // queryParams.value.pageNum = 1
+    // queryParams.value.pageSize = 10
+    // queryParams.value.name = null
+
+    proxy.resetForm("queryRef");
     handleQuery();
 }
 
